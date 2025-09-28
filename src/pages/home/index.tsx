@@ -5,9 +5,169 @@ import Logo from "../../static/icons/logo.svg";
 import Utilities1 from "../../static/icons/utilities-1.png";
 import Utilities2 from "../../static/icons/utilities-2.png";
 import Utilities3 from "../../static/icons/utilities-3.png";
+import { Button } from "@/ui/button";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState } from "react";
+import { getDashboardStatistics } from "@/services/home";
+import { useSetAtom } from "jotai";
+import { commonAtom } from "@/atoms/commonAtom";
+import { ISummaryData } from "@/types/home.types";
+import { formatPrice } from "@/utils/format";
+import moment from "moment";
 
 const HomePage = () => {
+  const navigate = useNavigate();
+  const { authData, onLogin } = useAuth();
+  const [dataStatistics, setDataStatistics] = useState<ISummaryData | null>(null);
+  const [activeReportTab, setActiveReportTab] = useState<'today' | 'thisWeek' | 'thisMonth' | 'thisYear'>('today');
+  const setLoading = useSetAtom(commonAtom);
+  const onFetchStatistics = async () => {
+    try {
+      setLoading({ loading: true });
+      const response = await getDashboardStatistics({
+        fromDate: moment().format("YYYY-MM-DD"),
+        toDate: moment().format("YYYY-MM-DD")
+      });
+      setDataStatistics(response.data);
+    } catch (error) {
+      console.error("Failed to fetch dashboard statistics:", error);
+      // Khi API lỗi, dataStatistics sẽ là null và các function sẽ trả về fallback data
+      setDataStatistics(null);
+    } finally {
+      setLoading({ loading: false });
+    }
+  }
 
+  // Function để map dữ liệu weekly chart
+  const getWeeklyChartData = () => {
+    if (!dataStatistics?.overview7Days?.dailyData) {
+      // Fallback data khi không có dữ liệu thực
+      return [
+        { d: 'T2', v: 0 },
+        { d: 'T3', v: 0 },
+        { d: 'T4', v: 0 },
+        { d: 'T5', v: 0 },
+        { d: 'T6', v: 0 },
+        { d: 'T7', v: 0 },
+        { d: 'CN', v: 0 },
+      ];
+    }
+
+    const dayMap = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+    return dataStatistics.overview7Days.dailyData.map(item => ({
+      d: dayMap[item.dayOfWeek],
+      v: item.revenue / 1000 // Chia cho 1000 để hiển thị dễ đọc hơn
+    }));
+  };
+
+  // Function để lấy dữ liệu báo cáo theo tab được chọn
+  const getCurrentReportData = () => {
+    if (!dataStatistics?.summary) {
+      return {
+        totalRevenue: 0,
+        revenueGrowth: { value: 0, text: "" },
+        totalOrders: 0,
+        orderGrowth: { value: 0, text: "" }
+      };
+    }
+
+    return dataStatistics.summary[activeReportTab];
+  };
+
+  // Function để lấy dữ liệu top products
+  const getTopProducts = () => {
+    if (!dataStatistics?.topProducts || dataStatistics.topProducts.length === 0) {
+      // Fallback data khi không có dữ liệu thực
+      return [
+        { name: 'Chưa có dữ liệu', sold: 0 },
+      ];
+    }
+
+    return dataStatistics.topProducts.map(item => ({
+      name: item.productName,
+      sold: item.totalQuantity
+    }));
+  };
+
+  // Function để lấy dữ liệu payment methods
+  const getPaymentMethodsData = () => {
+    if (!dataStatistics?.paymentMethods || dataStatistics.paymentMethods.length === 0) {
+      // Fallback data khi không có dữ liệu thực
+      return {
+        data: [{ name: 'Chưa có dữ liệu', value: 100 }],
+        primaryMethod: { name: 'Chưa có dữ liệu', percentage: 100 }
+      };
+    }
+
+    const totalOrders = dataStatistics.paymentMethods.reduce((sum, item) => sum + item.totalOrders, 0);
+
+    if (totalOrders === 0) {
+      return {
+        data: [{ name: 'Chưa có dữ liệu', value: 100 }],
+        primaryMethod: { name: 'Chưa có dữ liệu', percentage: 100 }
+      };
+    }
+
+    const paymentData = dataStatistics.paymentMethods.map(item => ({
+      name: item.paymentMethod,
+      value: Math.round((item.totalOrders / totalOrders) * 100)
+    }));
+
+    // Tìm phương thức thanh toán có tỷ lệ cao nhất
+    const primaryMethod = paymentData.reduce((max, current) =>
+      current.value > max.value ? current : max
+    );
+
+    return {
+      data: paymentData,
+      primaryMethod: { name: primaryMethod.name, percentage: primaryMethod.value }
+    };
+  };
+
+  // Function để lấy dữ liệu recent orders
+  const getRecentOrders = () => {
+    if (!dataStatistics?.recentOrders || dataStatistics.recentOrders.length === 0) {
+      // Fallback data khi không có dữ liệu thực
+      return [
+        { id: 1, code: 'Chưa có đơn hàng', time: '', amount: '0' },
+      ];
+    }
+
+    return dataStatistics.recentOrders.map((item, index) => ({
+      id: index + 1,
+      code: item.orderCode,
+      time: formatOrderDate(item.orderDate),
+      amount: formatCurrency(item.totalAmount)
+    }));
+  };
+
+  // Function để format ngày tháng cho đơn hàng
+  const formatOrderDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      const hour = date.getHours().toString().padStart(2, '0');
+      const minute = date.getMinutes().toString().padStart(2, '0');
+
+      return `${hour}:${minute} ${day}/${month}/${year}`;
+    } catch {
+      return dateString; // Fallback nếu format lỗi
+    }
+  };
+
+  // Function để format currency cho recent orders
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('vi-VN').format(amount);
+  };
+
+  useEffect(() => {
+    if (authData?.accessToken) {
+      onFetchStatistics();
+    }
+  }, [authData])
   return (
     <div className="bg-white min-h-full pb-4">
       <div className="mx-auto w-full bg-white text-[#141518]">
@@ -24,31 +184,96 @@ const HomePage = () => {
             <img src={Logo} className="w-[108px] h-auto" />
           </div>
           <div className=" py-4">
-            <div className="relative rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
-              <div className="mb-1 text-[15px] text-gray-500 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" viewBox="0 0 24 25" fill="none">
-                  <path d="M21.999 8.90262C21.999 8.72116 21.9495 8.54313 21.856 8.38762L19.147 3.87262C18.9686 3.57746 18.7171 3.33319 18.417 3.16331C18.1168 2.99343 17.7779 2.90365 17.433 2.90262H6.56502C5.86702 2.90262 5.21002 3.27462 4.85102 3.87362L2.14202 8.38762C2.04851 8.54313 1.99908 8.72116 1.99902 8.90262C1.99902 9.90762 2.38502 10.8166 2.99902 11.5206V20.9026C2.99902 21.1678 3.10438 21.4222 3.29192 21.6097C3.47945 21.7973 3.73381 21.9026 3.99902 21.9026H11.999C12.2642 21.9026 12.5186 21.7973 12.7061 21.6097C12.8937 21.4222 12.999 21.1678 12.999 20.9026V15.9026H16.999V20.9026C16.999 21.1678 17.1044 21.4222 17.2919 21.6097C17.4795 21.7973 17.7338 21.9026 17.999 21.9026H19.999C20.2642 21.9026 20.5186 21.7973 20.7061 21.6097C20.8937 21.4222 20.999 21.1678 20.999 20.9026V11.5206C21.613 10.8166 21.999 9.90762 21.999 8.90262ZM19.983 9.15362C19.9219 9.6367 19.6867 10.0809 19.3214 10.4029C18.9561 10.7249 18.486 10.9026 17.999 10.9026C16.896 10.9026 15.999 10.0056 15.999 8.90262C15.999 8.83462 15.974 8.77462 15.96 8.71062L15.98 8.70662L15.219 4.90262H17.433L19.983 9.15362ZM10.006 8.96762L10.818 4.90262H13.179L13.992 8.96762C13.957 10.0406 13.079 10.9026 11.999 10.9026C10.919 10.9026 10.041 10.0406 10.006 8.96762ZM6.56502 4.90262H8.77902L8.01902 8.70662L8.03902 8.71062C8.02402 8.77462 7.99902 8.83462 7.99902 8.90262C7.99902 10.0056 7.10202 10.9026 5.99902 10.9026C5.51209 10.9026 5.04191 10.7249 4.67664 10.4029C4.31138 10.0809 4.07613 9.6367 4.01502 9.15362L6.56502 4.90262ZM9.99902 16.9026H5.99902V13.9026H9.99902V16.9026Z" fill="#1A1A1A" fill-opacity="0.18" />
-                </svg>
-                <span>Chi nhánh</span>
+            {/* Giao diện chọn chi nhánh chỉ hiện khi đã login và có nhiều chi nhánh */}
+            {authData?.accessToken && authData?.branches && authData?.branches.length > 0 ? (
+              <div className="relative rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
+                <div className="mb-1 text-[15px] text-gray-500 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" viewBox="0 0 24 25" fill="none">
+                    <path d="M21.999 8.90262C21.999 8.72116 21.9495 8.54313 21.856 8.38762L19.147 3.87262C18.9686 3.57746 18.7171 3.33319 18.417 3.16331C18.1168 2.99343 17.7779 2.90365 17.433 2.90262H6.56502C5.86702 2.90262 5.21002 3.27462 4.85102 3.87362L2.14202 8.38762C2.04851 8.54313 1.99908 8.72116 1.99902 8.90262C1.99902 9.90762 2.38502 10.8166 2.99902 11.5206V20.9026C2.99902 21.1678 3.10438 21.4222 3.29192 21.6097C3.47945 21.7973 3.73381 21.9026 3.99902 21.9026H11.999C12.2642 21.9026 12.5186 21.7973 12.7061 21.6097C12.8937 21.4222 12.999 21.1678 12.999 20.9026V15.9026H16.999V20.9026C16.999 21.1678 17.1044 21.4222 17.2919 21.6097C17.4795 21.7973 17.7338 21.9026 17.999 21.9026H19.999C20.2642 21.9026 20.5186 21.7973 20.7061 21.6097C20.8937 21.4222 20.999 21.1678 20.999 20.9026V11.5206C21.613 10.8166 21.999 9.90762 21.999 8.90262ZM19.983 9.15362C19.9219 9.6367 19.6867 10.0809 19.3214 10.4029C18.9561 10.7249 18.486 10.9026 17.999 10.9026C16.896 10.9026 15.999 10.0056 15.999 8.90262C15.999 8.83462 15.974 8.77462 15.96 8.71062L15.98 8.70662L15.219 4.90262H17.433L19.983 9.15362ZM10.006 8.96762L10.818 4.90262H13.179L13.992 8.96762C13.957 10.0406 13.079 10.9026 11.999 10.9026C10.919 10.9026 10.041 10.0406 10.006 8.96762ZM6.56502 4.90262H8.77902L8.01902 8.70662L8.03902 8.71062C8.02402 8.77462 7.99902 8.83462 7.99902 8.90262C7.99902 10.0056 7.10202 10.9026 5.99902 10.9026C5.51209 10.9026 5.04191 10.7249 4.67664 10.4029C4.31138 10.0809 4.07613 9.6367 4.01502 9.15362L6.56502 4.90262ZM9.99902 16.9026H5.99902V13.9026H9.99902V16.9026Z" fill="#1A1A1A" fill-opacity="0.18" />
+                  </svg>
+                  <span>Chi nhánh</span>
+                </div>
+                <div className="flex items-center gap-2 text-[15px] font-semibold mt-2">
+                  <span>ZenPay - Phạm Văn Đồng</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" viewBox="0 0 24 25" fill="none">
+                    <path d="M6.75 9.90262L12 15.1526L17.25 9.90262" stroke="#1A1A1A" strokeOpacity="0.7" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="73" height="74" viewBox="0 0 73 74" fill="none">
+                    <path d="M15.7195 9.23398C21.836 21.5709 36.0543 20.6538 46.7234 26.4303L46.2433 24.0814L42.6352 19.4977C45.6007 20.3137 49.1848 21.8115 51.4534 23.9154C53.0083 25.3554 56.2716 32.1147 58.0754 30.829L57.1294 26.435C63.8947 31.4038 59.1911 39.2783 67.3499 43.3513C69.8991 44.6236 70.7021 42.7122 72.2653 47.2091C73.5556 50.9296 73.018 54.2913 71.6473 57.8998C69.6113 52.5871 66.6051 53.0433 62.9099 50.8913C61.0101 49.7871 59.624 47.2548 57.676 46.0466C55.0391 44.4146 51.6881 43.8792 48.6344 44.0631C51.0791 46.1112 54.1245 46.8159 56.7776 48.8319C59.8718 51.1844 61.5653 54.8511 66.2708 54.787C66.6465 57.8671 63.8723 61.4912 60.6186 61.0601C60.827 44.0248 38.9658 54.3218 33.4985 42.184C35.8472 42.4641 37.1966 43.7263 39.6736 43.0382C46.932 41.0212 38.1001 35.672 31.9203 39.6644C24.2654 44.6095 27.1577 58.1308 31.6065 64.524C33.8177 67.7076 37.4675 70.7497 40.5768 74H12.5916C10.9711 69.6519 11.006 64.5379 12.6724 59.7884C8.73787 61.8528 8.29434 66.1462 5.74616 69.2264C4.55271 59.5305 7.93577 52.5784 15.1966 46.578C9.88275 46.7706 5.78094 49.8584 2.90342 54.1227C2.99962 46.7052 8.44083 40.4771 15.3107 38.1886C17.0019 37.6213 20.084 38.4944 19.6128 36.5041C12.5511 34.7921 5.7128 34.591 0.374431 40.2718C-0.0964985 40.3656 -0.0258778 39.6693 0.0701915 39.3417C1.65769 34.181 8.16969 30.3029 13.2999 29.5668C12.7469 27.2708 10.6536 26.4446 9.58718 24.1574C8.76152 22.381 8.28168 20.2101 8.26564 18.2497L12.0734 22.9379C16.7142 24.0265 20.3204 27.8467 24.224 29.6949C31.4784 33.1271 40.7307 30.4201 46.7187 37.7568C43.0151 28.013 31.3366 29.3644 23.6012 25.2772C14.4471 20.4364 10.7736 9.79366 13.3141 0L15.7195 9.23398ZM47.9927 72.6998C50.1812 71.9717 56.9093 70.0148 58.4034 71.7556C58.7096 72.4844 58.9398 73.2383 59.1069 74H48.0402C48.0299 73.9831 48.0172 73.9648 48.0069 73.9478C47.6458 73.358 46.9437 73.5071 47.9927 72.6998ZM42.7636 61.155C45.8333 60.499 52.9674 65.8111 55.5416 67.9642L45.7727 70.8967C44.4677 70.0501 36.348 64.8162 37.2682 63.5702C39.3589 63.705 41.1772 61.4924 42.7636 61.155ZM41.6845 59.7789L35.11 62.3318C32.641 59.6832 30.9884 56.8079 30.323 53.1832L35.2621 52.3433L41.6845 59.7789ZM33.4747 50.3361L30.2612 49.9708L30.9648 44.0536L33.4747 50.3361Z" fill="url(#paint0_linear_1475_13316)" />
+                    <defs>
+                      <linearGradient id="paint0_linear_1475_13316" x1="0.0237495" y1="4.33853e-06" x2="116.492" y2="130.867" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#D9D9D9" />
+                        <stop offset="1" stop-color="#D9D9D9" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-[15px] font-semibold mt-2">
-                <span>ZenPay - Phạm Văn Đồng</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" viewBox="0 0 24 25" fill="none">
-                  <path d="M6.75 9.90262L12 15.1526L17.25 9.90262" stroke="#1A1A1A" strokeOpacity="0.7" strokeWidth="2" strokeLinecap="round" />
-                </svg>
+            ) : authData?.accessToken ? (
+              <div className="relative rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
+                <div className="mb-1 text-[15px] text-gray-500 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" viewBox="0 0 24 25" fill="none">
+                    <path d="M21.999 8.90262C21.999 8.72116 21.9495 8.54313 21.856 8.38762L19.147 3.87262C18.9686 3.57746 18.7171 3.33319 18.417 3.16331C18.1168 2.99343 17.7779 2.90365 17.433 2.90262H6.56502C5.86702 2.90262 5.21002 3.27462 4.85102 3.87362L2.14202 8.38762C2.04851 8.54313 1.99908 8.72116 1.99902 8.90262C1.99902 9.90762 2.38502 10.8166 2.99902 11.5206V20.9026C2.99902 21.1678 3.10438 21.4222 3.29192 21.6097C3.47945 21.7973 3.73381 21.9026 3.99902 21.9026H11.999C12.2642 21.9026 12.5186 21.7973 12.7061 21.6097C12.8937 21.4222 12.999 21.1678 12.999 20.9026V15.9026H16.999V20.9026C16.999 21.1678 17.1044 21.4222 17.2919 21.6097C17.4795 21.7973 17.7338 21.9026 17.999 21.9026H19.999C20.2642 21.9026 20.5186 21.7973 20.7061 21.6097C20.8937 21.4222 20.999 21.1678 20.999 20.9026V11.5206C21.613 10.8166 21.999 9.90762 21.999 8.90262ZM19.983 9.15362C19.9219 9.6367 19.6867 10.0809 19.3214 10.4029C18.9561 10.7249 18.486 10.9026 17.999 10.9026C16.896 10.9026 15.999 10.0056 15.999 8.90262C15.999 8.83462 15.974 8.77462 15.96 8.71062L15.98 8.70662L15.219 4.90262H17.433L19.983 9.15362ZM10.006 8.96762L10.818 4.90262H13.179L13.992 8.96762C13.957 10.0406 13.079 10.9026 11.999 10.9026C10.919 10.9026 10.041 10.0406 10.006 8.96762ZM6.56502 4.90262H8.77902L8.01902 8.70662L8.03902 8.71062C8.02402 8.77462 7.99902 8.83462 7.99902 8.90262C7.99902 10.0056 7.10202 10.9026 5.99902 10.9026C5.51209 10.9026 5.04191 10.7249 4.67664 10.4029C4.31138 10.0809 4.07613 9.6367 4.01502 9.15362L6.56502 4.90262ZM9.99902 16.9026H5.99902V13.9026H9.99902V16.9026Z" fill="#1A1A1A" fill-opacity="0.18" />
+                  </svg>
+                  <span>Chi nhánh</span>
+                </div>
+                <div className="flex items-center gap-2 text-[13px] font-semibold">
+                  <span>Bạn chưa có chi nhánh?</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigate("/store/create")}
+                    className="bg-gradient-to-r from-[#FF9F2E] to-[#FF4D00] text-white font-semibold"
+                  >
+                    Đăng ký
+                  </Button>
+                </div>
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="73" height="74" viewBox="0 0 73 74" fill="none">
+                    <path d="M15.7195 9.23398C21.836 21.5709 36.0543 20.6538 46.7234 26.4303L46.2433 24.0814L42.6352 19.4977C45.6007 20.3137 49.1848 21.8115 51.4534 23.9154C53.0083 25.3554 56.2716 32.1147 58.0754 30.829L57.1294 26.435C63.8947 31.4038 59.1911 39.2783 67.3499 43.3513C69.8991 44.6236 70.7021 42.7122 72.2653 47.2091C73.5556 50.9296 73.018 54.2913 71.6473 57.8998C69.6113 52.5871 66.6051 53.0433 62.9099 50.8913C61.0101 49.7871 59.624 47.2548 57.676 46.0466C55.0391 44.4146 51.6881 43.8792 48.6344 44.0631C51.0791 46.1112 54.1245 46.8159 56.7776 48.8319C59.8718 51.1844 61.5653 54.8511 66.2708 54.787C66.6465 57.8671 63.8723 61.4912 60.6186 61.0601C60.827 44.0248 38.9658 54.3218 33.4985 42.184C35.8472 42.4641 37.1966 43.7263 39.6736 43.0382C46.932 41.0212 38.1001 35.672 31.9203 39.6644C24.2654 44.6095 27.1577 58.1308 31.6065 64.524C33.8177 67.7076 37.4675 70.7497 40.5768 74H12.5916C10.9711 69.6519 11.006 64.5379 12.6724 59.7884C8.73787 61.8528 8.29434 66.1462 5.74616 69.2264C4.55271 59.5305 7.93577 52.5784 15.1966 46.578C9.88275 46.7706 5.78094 49.8584 2.90342 54.1227C2.99962 46.7052 8.44083 40.4771 15.3107 38.1886C17.0019 37.6213 20.084 38.4944 19.6128 36.5041C12.5511 34.7921 5.7128 34.591 0.374431 40.2718C-0.0964985 40.3656 -0.0258778 39.6693 0.0701915 39.3417C1.65769 34.181 8.16969 30.3029 13.2999 29.5668C12.7469 27.2708 10.6536 26.4446 9.58718 24.1574C8.76152 22.381 8.28168 20.2101 8.26564 18.2497L12.0734 22.9379C16.7142 24.0265 20.3204 27.8467 24.224 29.6949C31.4784 33.1271 40.7307 30.4201 46.7187 37.7568C43.0151 28.013 31.3366 29.3644 23.6012 25.2772C14.4471 20.4364 10.7736 9.79366 13.3141 0L15.7195 9.23398ZM47.9927 72.6998C50.1812 71.9717 56.9093 70.0148 58.4034 71.7556C58.7096 72.4844 58.9398 73.2383 59.1069 74H48.0402C48.0299 73.9831 48.0172 73.9648 48.0069 73.9478C47.6458 73.358 46.9437 73.5071 47.9927 72.6998ZM42.7636 61.155C45.8333 60.499 52.9674 65.8111 55.5416 67.9642L45.7727 70.8967C44.4677 70.0501 36.348 64.8162 37.2682 63.5702C39.3589 63.705 41.1772 61.4924 42.7636 61.155ZM41.6845 59.7789L35.11 62.3318C32.641 59.6832 30.9884 56.8079 30.323 53.1832L35.2621 52.3433L41.6845 59.7789ZM33.4747 50.3361L30.2612 49.9708L30.9648 44.0536L33.4747 50.3361Z" fill="url(#paint0_linear_1475_13316)" />
+                    <defs>
+                      <linearGradient id="paint0_linear_1475_13316" x1="0.0237495" y1="4.33853e-06" x2="116.492" y2="130.867" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#D9D9D9" />
+                        <stop offset="1" stop-color="#D9D9D9" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
               </div>
-              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="73" height="74" viewBox="0 0 73 74" fill="none">
-                  <path d="M15.7195 9.23398C21.836 21.5709 36.0543 20.6538 46.7234 26.4303L46.2433 24.0814L42.6352 19.4977C45.6007 20.3137 49.1848 21.8115 51.4534 23.9154C53.0083 25.3554 56.2716 32.1147 58.0754 30.829L57.1294 26.435C63.8947 31.4038 59.1911 39.2783 67.3499 43.3513C69.8991 44.6236 70.7021 42.7122 72.2653 47.2091C73.5556 50.9296 73.018 54.2913 71.6473 57.8998C69.6113 52.5871 66.6051 53.0433 62.9099 50.8913C61.0101 49.7871 59.624 47.2548 57.676 46.0466C55.0391 44.4146 51.6881 43.8792 48.6344 44.0631C51.0791 46.1112 54.1245 46.8159 56.7776 48.8319C59.8718 51.1844 61.5653 54.8511 66.2708 54.787C66.6465 57.8671 63.8723 61.4912 60.6186 61.0601C60.827 44.0248 38.9658 54.3218 33.4985 42.184C35.8472 42.4641 37.1966 43.7263 39.6736 43.0382C46.932 41.0212 38.1001 35.672 31.9203 39.6644C24.2654 44.6095 27.1577 58.1308 31.6065 64.524C33.8177 67.7076 37.4675 70.7497 40.5768 74H12.5916C10.9711 69.6519 11.006 64.5379 12.6724 59.7884C8.73787 61.8528 8.29434 66.1462 5.74616 69.2264C4.55271 59.5305 7.93577 52.5784 15.1966 46.578C9.88275 46.7706 5.78094 49.8584 2.90342 54.1227C2.99962 46.7052 8.44083 40.4771 15.3107 38.1886C17.0019 37.6213 20.084 38.4944 19.6128 36.5041C12.5511 34.7921 5.7128 34.591 0.374431 40.2718C-0.0964985 40.3656 -0.0258778 39.6693 0.0701915 39.3417C1.65769 34.181 8.16969 30.3029 13.2999 29.5668C12.7469 27.2708 10.6536 26.4446 9.58718 24.1574C8.76152 22.381 8.28168 20.2101 8.26564 18.2497L12.0734 22.9379C16.7142 24.0265 20.3204 27.8467 24.224 29.6949C31.4784 33.1271 40.7307 30.4201 46.7187 37.7568C43.0151 28.013 31.3366 29.3644 23.6012 25.2772C14.4471 20.4364 10.7736 9.79366 13.3141 0L15.7195 9.23398ZM47.9927 72.6998C50.1812 71.9717 56.9093 70.0148 58.4034 71.7556C58.7096 72.4844 58.9398 73.2383 59.1069 74H48.0402C48.0299 73.9831 48.0172 73.9648 48.0069 73.9478C47.6458 73.358 46.9437 73.5071 47.9927 72.6998ZM42.7636 61.155C45.8333 60.499 52.9674 65.8111 55.5416 67.9642L45.7727 70.8967C44.4677 70.0501 36.348 64.8162 37.2682 63.5702C39.3589 63.705 41.1772 61.4924 42.7636 61.155ZM41.6845 59.7789L35.11 62.3318C32.641 59.6832 30.9884 56.8079 30.323 53.1832L35.2621 52.3433L41.6845 59.7789ZM33.4747 50.3361L30.2612 49.9708L30.9648 44.0536L33.4747 50.3361Z" fill="url(#paint0_linear_1475_13316)" />
-                  <defs>
-                    <linearGradient id="paint0_linear_1475_13316" x1="0.0237495" y1="4.33853e-06" x2="116.492" y2="130.867" gradientUnits="userSpaceOnUse">
-                      <stop stop-color="#D9D9D9" />
-                      <stop offset="1" stop-color="#D9D9D9" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                </svg>
+            ) : (
+              <div className="relative rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-[0_4px_16px_rgba(0,0,0,0.06)]">
+                <div className="mb-1 text-[15px] text-gray-500 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" viewBox="0 0 24 25" fill="none">
+                    <path d="M21.999 8.90262C21.999 8.72116 21.9495 8.54313 21.856 8.38762L19.147 3.87262C18.9686 3.57746 18.7171 3.33319 18.417 3.16331C18.1168 2.99343 17.7779 2.90365 17.433 2.90262H6.56502C5.86702 2.90262 5.21002 3.27462 4.85102 3.87362L2.14202 8.38762C2.04851 8.54313 1.99908 8.72116 1.99902 8.90262C1.99902 9.90762 2.38502 10.8166 2.99902 11.5206V20.9026C2.99902 21.1678 3.10438 21.4222 3.29192 21.6097C3.47945 21.7973 3.73381 21.9026 3.99902 21.9026H11.999C12.2642 21.9026 12.5186 21.7973 12.7061 21.6097C12.8937 21.4222 12.999 21.1678 12.999 20.9026V15.9026H16.999V20.9026C16.999 21.1678 17.1044 21.4222 17.2919 21.6097C17.4795 21.7973 17.7338 21.9026 17.999 21.9026H19.999C20.2642 21.9026 20.5186 21.7973 20.7061 21.6097C20.8937 21.4222 20.999 21.1678 20.999 20.9026V11.5206C21.613 10.8166 21.999 9.90762 21.999 8.90262ZM19.983 9.15362C19.9219 9.6367 19.6867 10.0809 19.3214 10.4029C18.9561 10.7249 18.486 10.9026 17.999 10.9026C16.896 10.9026 15.999 10.0056 15.999 8.90262C15.999 8.83462 15.974 8.77462 15.96 8.71062L15.98 8.70662L15.219 4.90262H17.433L19.983 9.15362ZM10.006 8.96762L10.818 4.90262H13.179L13.992 8.96762C13.957 10.0406 13.079 10.9026 11.999 10.9026C10.919 10.9026 10.041 10.0406 10.006 8.96762ZM6.56502 4.90262H8.77902L8.01902 8.70662L8.03902 8.71062C8.02402 8.77462 7.99902 8.83462 7.99902 8.90262C7.99902 10.0056 7.10202 10.9026 5.99902 10.9026C5.51209 10.9026 5.04191 10.7249 4.67664 10.4029C4.31138 10.0809 4.07613 9.6367 4.01502 9.15362L6.56502 4.90262ZM9.99902 16.9026H5.99902V13.9026H9.99902V16.9026Z" fill="#1A1A1A" fill-opacity="0.18" />
+                  </svg>
+                  <span>Chi nhánh</span>
+                </div>
+                <div className="flex items-center gap-2 text-[13px] font-semibold">
+                  <span>Truy cập để sử dụng?</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onLogin()}
+                    className="bg-gradient-to-r from-[#FF9F2E] to-[#FF4D00] text-white font-semibold"
+                  >
+                    Đăng nhập
+                  </Button>
+                </div>
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="73" height="74" viewBox="0 0 73 74" fill="none">
+                    <path d="M15.7195 9.23398C21.836 21.5709 36.0543 20.6538 46.7234 26.4303L46.2433 24.0814L42.6352 19.4977C45.6007 20.3137 49.1848 21.8115 51.4534 23.9154C53.0083 25.3554 56.2716 32.1147 58.0754 30.829L57.1294 26.435C63.8947 31.4038 59.1911 39.2783 67.3499 43.3513C69.8991 44.6236 70.7021 42.7122 72.2653 47.2091C73.5556 50.9296 73.018 54.2913 71.6473 57.8998C69.6113 52.5871 66.6051 53.0433 62.9099 50.8913C61.0101 49.7871 59.624 47.2548 57.676 46.0466C55.0391 44.4146 51.6881 43.8792 48.6344 44.0631C51.0791 46.1112 54.1245 46.8159 56.7776 48.8319C59.8718 51.1844 61.5653 54.8511 66.2708 54.787C66.6465 57.8671 63.8723 61.4912 60.6186 61.0601C60.827 44.0248 38.9658 54.3218 33.4985 42.184C35.8472 42.4641 37.1966 43.7263 39.6736 43.0382C46.932 41.0212 38.1001 35.672 31.9203 39.6644C24.2654 44.6095 27.1577 58.1308 31.6065 64.524C33.8177 67.7076 37.4675 70.7497 40.5768 74H12.5916C10.9711 69.6519 11.006 64.5379 12.6724 59.7884C8.73787 61.8528 8.29434 66.1462 5.74616 69.2264C4.55271 59.5305 7.93577 52.5784 15.1966 46.578C9.88275 46.7706 5.78094 49.8584 2.90342 54.1227C2.99962 46.7052 8.44083 40.4771 15.3107 38.1886C17.0019 37.6213 20.084 38.4944 19.6128 36.5041C12.5511 34.7921 5.7128 34.591 0.374431 40.2718C-0.0964985 40.3656 -0.0258778 39.6693 0.0701915 39.3417C1.65769 34.181 8.16969 30.3029 13.2999 29.5668C12.7469 27.2708 10.6536 26.4446 9.58718 24.1574C8.76152 22.381 8.28168 20.2101 8.26564 18.2497L12.0734 22.9379C16.7142 24.0265 20.3204 27.8467 24.224 29.6949C31.4784 33.1271 40.7307 30.4201 46.7187 37.7568C43.0151 28.013 31.3366 29.3644 23.6012 25.2772C14.4471 20.4364 10.7736 9.79366 13.3141 0L15.7195 9.23398ZM47.9927 72.6998C50.1812 71.9717 56.9093 70.0148 58.4034 71.7556C58.7096 72.4844 58.9398 73.2383 59.1069 74H48.0402C48.0299 73.9831 48.0172 73.9648 48.0069 73.9478C47.6458 73.358 46.9437 73.5071 47.9927 72.6998ZM42.7636 61.155C45.8333 60.499 52.9674 65.8111 55.5416 67.9642L45.7727 70.8967C44.4677 70.0501 36.348 64.8162 37.2682 63.5702C39.3589 63.705 41.1772 61.4924 42.7636 61.155ZM41.6845 59.7789L35.11 62.3318C32.641 59.6832 30.9884 56.8079 30.323 53.1832L35.2621 52.3433L41.6845 59.7789ZM33.4747 50.3361L30.2612 49.9708L30.9648 44.0536L33.4747 50.3361Z" fill="url(#paint0_linear_1475_13316)" />
+                    <defs>
+                      <linearGradient id="paint0_linear_1475_13316" x1="0.0237495" y1="4.33853e-06" x2="116.492" y2="130.867" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#D9D9D9" />
+                        <stop offset="1" stop-color="#D9D9D9" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -68,7 +293,7 @@ const HomePage = () => {
           <div className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white p-3 shadow-sm">
             <div className="h-36 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weeklyData} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
+                <LineChart data={getWeeklyChartData()} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
                   <XAxis dataKey="d" tick={{ fontSize: 12, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={28} />
@@ -89,7 +314,7 @@ const HomePage = () => {
                     </radialGradient>
                   </defs>
                 </svg>
-              )} label="Doanh thu" value="1.111.120,345 đ" />
+              )} label="Doanh thu" value={formatPrice(dataStatistics?.overview7Days?.totalRevenue || 0)} />
               <KPI icon={(
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="17" viewBox="0 0 16 17" fill="none">
                   <g clip-path="url(#clip0_1472_9157)">
@@ -101,7 +326,7 @@ const HomePage = () => {
                     </clipPath>
                   </defs>
                 </svg>
-              )} label="Đơn hàng" value="150" align="right" />
+              )} label="Đơn hàng" value={dataStatistics?.overview7Days?.totalOrders?.toString() || "0"} align="right" />
             </div>
           </div>
         </div>
@@ -109,8 +334,19 @@ const HomePage = () => {
           <div className="mb-2 text-[15px] font-semibold text-gray-900">Báo cáo</div>
           {/* Report tabs */}
           <div className="mb-4 grid grid-cols-4 gap-2 bg-[#F5F5F4] p-1 rounded-lg">
-            {['Hôm nay', 'Tuần này', 'Tháng này', 'Năm nay'].map((t, i) => (
-              <button key={t} className={`h-9 rounded-lg border text-sm ${i === 0 ? 'border-[#E5E7EB] bg-white shadow-sm font-semibold text-gray-900' : 'border-none text-[#1A1A1A76]'}`}>{t}</button>
+            {[
+              { label: 'Hôm nay', key: 'today' as const },
+              { label: 'Tuần này', key: 'thisWeek' as const },
+              { label: 'Tháng này', key: 'thisMonth' as const },
+              { label: 'Năm nay', key: 'thisYear' as const }
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveReportTab(tab.key)}
+                className={`h-9 rounded-lg border text-sm ${activeReportTab === tab.key ? 'border-[#E5E7EB] bg-white shadow-sm font-semibold text-gray-900' : 'border-none text-[#1A1A1A76]'}`}
+              >
+                {tab.label}
+              </button>
             ))}
           </div>
 
@@ -129,7 +365,7 @@ const HomePage = () => {
                     </radialGradient>
                   </defs>
                 </svg>
-              )} label="Doanh thu" value="120,345 đ" sub="+15% so với hôm qua" />
+              )} label="Doanh thu" value={formatPrice(getCurrentReportData().totalRevenue)} sub={getCurrentReportData().revenueGrowth.text} />
             </div>
             <div className="">
               <KPI align="right" icon={(
@@ -143,16 +379,17 @@ const HomePage = () => {
                     </clipPath>
                   </defs>
                 </svg>
-              )} label="Đơn hàng" value="150" sub="+15% so với hôm qua" />
+              )} label="Đơn hàng" value={getCurrentReportData().totalOrders.toString()} sub={getCurrentReportData().orderGrowth.text} />
             </div>
           </div>
           {/* Top products */}
           <Card title="Top 5 Sản phẩm bán chạy">
             {/* List-style bars to match the reference UI */}
             <div className="space-y-4 pt-3">
-              {topProducts.map((p) => {
-                const max = Math.max(...topProducts.map(tp => tp.sold));
-                const percent = Math.max(4, Math.round((p.sold / max) * 100));
+              {getTopProducts().map((p) => {
+                const products = getTopProducts();
+                const max = Math.max(...products.map(tp => tp.sold));
+                const percent = max > 0 ? Math.max(4, Math.round((p.sold / max) * 100)) : 4;
                 return (
                   <div key={p.name} className="flex items-center gap-3">
                     {/* Left name */}
@@ -209,19 +446,25 @@ const HomePage = () => {
               <div className="h-40 w-40 relative">
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={paymentData} dataKey="value" nameKey="name" innerRadius={56} outerRadius={80} paddingAngle={2}>
-                      {paymentData.map((_, i) => (
+                    <Pie data={getPaymentMethodsData().data} dataKey="value" nameKey="name" innerRadius={56} outerRadius={80} paddingAngle={2}>
+                      {getPaymentMethodsData().data.map((_, i) => (
                         <Cell key={i} fill={pieColors[i % pieColors.length]} />
                       ))}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="pt-1 text-center text-2xl font-bold absolute inset-0 flex flex-col items-center justify-center">34% <span className="text-sm font-medium text-gray-500">Cà thẻ</span></div>
+                <div className="pt-1 text-center text-2xl font-bold absolute inset-0 flex flex-col items-center justify-center">
+                  {getPaymentMethodsData().primaryMethod.percentage}%
+                  <span className="text-sm font-medium text-gray-500">{getPaymentMethodsData().primaryMethod.name}</span>
+                </div>
               </div>
               <div className="flex-1 space-y-2 text-sm">
-                {paymentData.map((p, i) => (
+                {getPaymentMethodsData().data.map((p, i) => (
                   <div key={p.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2"><span className="inline-block h-3.5 w-3.5 rounded-sm" style={{ background: pieColors[i % pieColors.length] }} />{p.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-3.5 w-3.5 rounded-sm" style={{ background: pieColors[i % pieColors.length] }} />
+                      {p.name}
+                    </div>
                     <div className="text-gray-600">{p.value}%</div>
                   </div>
                 ))}
@@ -233,7 +476,7 @@ const HomePage = () => {
           {/* Recent orders */}
           <div className="mb-2 mt-4 text-[15px] font-semibold text-gray-900">Đơn hàng gần đây</div>
           <div className="space-y-3">
-            {orders.map((o) => (
+            {getRecentOrders().map((o) => (
               <div key={o.id} className="flex items-center justify-between rounded-2xl border border-[#E5E7EB] bg-white px-4 py-3 shadow-sm">
                 <div className="flex items-center gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" viewBox="0 0 24 25" fill="none">
@@ -241,10 +484,12 @@ const HomePage = () => {
                   </svg>
                   <div>
                     <div className="text-[15px] font-semibold">{o.code}</div>
-                    <div className="text-[12px] text-gray-500">{o.time}</div>
+                    {o.time && <div className="text-[12px] text-gray-500">{o.time}</div>}
                   </div>
                 </div>
-                <div className="text-[15px] font-semibold text-emerald-600">+{o.amount} đ</div>
+                {o.code !== 'Chưa có đơn hàng' && (
+                  <div className="text-[15px] font-semibold text-emerald-600">+{o.amount} đ</div>
+                )}
               </div>
             ))}
           </div>
@@ -292,40 +537,16 @@ function KPI({ icon, label, value, sub, align = "left" }: { icon: React.ReactNod
   );
 }
 
-/* ---------------- Sample data ---------------- */
-const weeklyData = [
-  { d: 'T2', v: 80 },
-  { d: 'T3', v: 110 },
-  { d: 'T4', v: 70 },
-  { d: 'T5', v: 140 },
-  { d: 'T6', v: 260 },
-  { d: 'T7', v: 120 },
-  { d: 'CN', v: 120 },
-];
+/* ---------------- Configuration & Constants ---------------- */
+// Màu sắc cho PieChart
+const pieColors = ["#3B82F6", "#60A5FA", "#F59E0B", "#FCD34D"]; // xanh, vàng theo thiết kế
 
-
-const topProducts = [
-  { name: 'Cơm tấm', sold: 2435 },
-  { name: 'Cà phê', sold: 1325 },
-  { name: 'Nước cam', sold: 735 },
-  { name: 'Nước ngọt', sold: 580 },
-  { name: 'Thuốc lá', sold: 428 },
-];
-
-
-const paymentData = [
-  { name: 'QR Tĩnh', value: 16 },
-  { name: 'QR Động', value: 45 },
-  { name: 'Cà thẻ', value: 5 },
-  { name: 'Tiền mặt', value: 34 },
-];
-const pieColors = ["#3B82F6", "#60A5FA", "#F59E0B", "#FCD34D"]; // xanh, vàng theo ảnh mẫu
-
-
-const orders = [
-  { id: 1, code: 'DH#12346', time: '10:11 10/11/2025', amount: '400.000' },
-  { id: 2, code: 'DH#12347', time: '10:11 10/11/2025', amount: '400.000' },
-  { id: 3, code: 'DH#12348', time: '10:11 10/11/2025', amount: '400.000' },
-  { id: 4, code: 'DH#12346', time: '10:11 10/11/2025', amount: '400.000' },
-];
+/*
+  NOTE: Tất cả mock data đã được thay thế bằng dữ liệu thật từ dataStatistics API
+  - weeklyData -> getWeeklyChartData() từ dataStatistics.overview7Days.dailyData
+  - topProducts -> getTopProducts() từ dataStatistics.topProducts
+  - paymentData -> getPaymentMethodsData() từ dataStatistics.paymentMethods
+  - orders -> getRecentOrders() từ dataStatistics.recentOrders
+  - KPI data -> getCurrentReportData() từ dataStatistics.summary với các tab khác nhau
+*/
 export default HomePage;

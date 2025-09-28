@@ -34,9 +34,25 @@ export interface IResGetToken extends IResBase {
 export interface IResGetPhoneToken extends IResBase {
   data?: string | null;
 }
+export interface IBranch {
+  tenantId: string;
+  merchantId: string;
+  merchantName: string;
+  branchId: string;
+  branchName: string;
+  role: string;
+  isPrimary: boolean;
+}
 export interface IResGetPhoneInternal extends IResBase {
   data?: {
     userPhoneNumber: string;
+    token: {
+      accessToken: string;
+      expiration: string;
+      tokenType: string;
+      expiresIn: number;
+    };
+    branches: IBranch[];
   } | null
 }
 export interface IResGetSetting extends IResBase {
@@ -66,9 +82,11 @@ export interface IResZaloLogin {
 }
 
 // Atom Data
-export interface IAuthAtom extends IResZaloLogin {
-  zaloToken: string;
-  phoneToken: string;
+export interface IAuthAtom {
+  accessToken: string;
+  refreshToken: string;
+  userPhoneNumber?: string;
+  branches: IBranch[];
 }
 export interface IResCreateZaloProfile {
   code: string;

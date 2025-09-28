@@ -108,3 +108,99 @@ export interface IProvinceWithCommunesRes {
   message: string;
   data: IProvinceData[];
 }
+
+// Dashboard - thống kê
+export interface IOverview7Days {
+  totalRevenue: number;
+  totalOrders: number;
+  dailyData: {
+    date: string;
+    revenue: number;
+    orders: number;
+    dayOfWeek: number;
+  }[];
+}
+
+export interface ISummary {
+  today: {
+    totalRevenue: number;
+    revenueGrowth: {
+      value: number;
+      text: string;
+    },
+    totalOrders: number;
+    orderGrowth: {
+      value: number;
+      text: string;
+    }
+  },
+  thisWeek: {
+    totalRevenue: number;
+    revenueGrowth: {
+      value: number;
+      text: string;
+    },
+    totalOrders: number;
+    orderGrowth: {
+      value: number;
+      text: string;
+    }
+  },
+  thisMonth: {
+    totalRevenue: number;
+    revenueGrowth: {
+      value: number;
+      text: string;
+    },
+    totalOrders: number;
+    orderGrowth: {
+      value: number;
+      text: string;
+    }
+  },
+  thisYear: {
+    totalRevenue: number;
+    revenueGrowth: {
+      value: number;
+      text: string;
+    },
+    totalOrders: number;
+    orderGrowth: {
+      value: number;
+      text: string;
+    }
+  },
+}
+
+export interface ITopProduct {
+  productName: string;
+  totalQuantity: number;
+};
+
+export interface IPaymentMethod {
+  paymentMethod: string;
+  totalOrders: number;
+};
+
+export interface IRecentOrder {
+  orderCode: string;
+  orderDate: string;
+  totalAmount: number;
+}
+
+export interface ISummaryData {
+  overview7Days: IOverview7Days;
+  summary: ISummary;
+  topProducts: ITopProduct[];
+  paymentMethods: IPaymentMethod[];
+  recentOrders: IRecentOrder[];
+}
+
+export interface ISummaryRes {
+  code: string;
+  message: string;
+  data: ISummaryData;
+  traceId: string;
+  timestamp: string;
+  isSuccess: boolean;
+}

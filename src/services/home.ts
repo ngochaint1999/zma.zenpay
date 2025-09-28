@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BankData, BusinessType, BusinessTypeApiResponse, IBanksResponse, INewStoreResponse, IProvinceData, IProvinceWithCommunesRes, MerchantCategory, MerchantCategoryApiResponse, PayloadNewStore } from "@/types/home.types";
+import { BankData, BusinessType, BusinessTypeApiResponse, IBanksResponse, INewStoreResponse, IProvinceData, IProvinceWithCommunesRes, ISummaryRes, MerchantCategory, MerchantCategoryApiResponse, PayloadNewStore } from "@/types/home.types";
 import jwtAxios from "./jwt-api";
 
 // 1. Loại hình kinh doanh
@@ -63,6 +63,17 @@ export const getProvinceWithCommunes = async (): Promise<IProvinceData[]> => {
   const res = await jwtAxios.get<IProvinceWithCommunesRes>("/administrative-units/province-with-communes"); // đổi URL thật
   if (res.data.code === "00" && Array.isArray(res.data.data)) {
     return res.data.data;
+  }
+  throw new Error(res.data.message || "API lỗi");
+};
+
+// Lấy thống kê Dashboard
+export const getDashboardStatistics = async (
+  dataQuery: { fromDate: string; toDate: string }
+): Promise<ISummaryRes> => {
+  const res = await jwtAxios.get<ISummaryRes>("/order/summary", { params: dataQuery }); // đổi URL thật
+  if (res.data.isSuccess) {
+    return res.data;
   }
   throw new Error(res.data.message || "API lỗi");
 };

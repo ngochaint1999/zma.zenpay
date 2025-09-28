@@ -16,6 +16,7 @@ import { MerchantCategorySheet } from "./components/MerchantCategorySheet";
 import authApis from "@/apis/authApis";
 import { EAuthorizeZalo } from "@/types/auth/auth.enums";
 import { Button, Modal } from "zmp-ui";
+import { authAtom } from "@/atoms/authAtom";
 
 // Constants cho validation mã số thuế
 const TAX_MIN_LENGTH = 10;
@@ -47,6 +48,7 @@ export default function CreateStorePage() {
   const navigate = useNavigate();
   const setLoading = useSetAtom(commonAtom);
   const [formData, setFormData] = useAtom(newStoreFormAtom);
+  const setAuth = useSetAtom(authAtom);
   const [businessTypes, setBusinessTypes] = useState<BusinessType[]>([]);
   const [merchantCategories, setMerchantCategories] = useState<MerchantCategory[]>([]);
   const [provinceWithCommunes, setprovinceWithCommunes] = useState<IProvinceData[]>([]);
@@ -102,6 +104,12 @@ export default function CreateStorePage() {
         setPhone(formattedPhone);
       }
       setZaloPhone(res.data.userPhoneNumber);
+      setAuth({
+        accessToken: res.data?.token?.accessToken || "",
+        refreshToken: "",
+        userPhoneNumber: res.data.userPhoneNumber,
+        branches: res.data?.branches || [],
+      });
       setFormData({ ...formData, phone: formattedPhone, zaloPhone: res.data.userPhoneNumber });
       navigate("/store/bank-info");
     } else {
@@ -289,7 +297,7 @@ export default function CreateStorePage() {
     }
 
     // Kiểm tra email
-    if(!email.trim()) {
+    if (!email.trim()) {
       validationErrors.push("Vui lòng nhập email liên hệ");
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -322,7 +330,7 @@ export default function CreateStorePage() {
       toast.error(validationErrors[0]);
       return;
     }
-    if (!phone.trim()) {
+    if (!zaloPhone.trim()) {
       await onLoginZalo();
       return;
     }

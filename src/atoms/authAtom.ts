@@ -5,11 +5,8 @@ import { IAuthAtom } from "@/types/auth/auth.types";
 
 // Atom lưu danh sách auth
 export const authAtom = atom<IAuthAtom>({
-  zaloToken: "",
   accessToken: "",
-  accessTokenExpiry: "",
   refreshToken: "",
-  refreshTokenExpiry: "",
-  phoneToken: "",
-  user: null
+  userPhoneNumber: "",
+  branches: []
 });
