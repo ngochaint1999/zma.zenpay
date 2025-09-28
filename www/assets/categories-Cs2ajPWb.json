@@ -1,0 +1,52 @@
+[
+  {
+    "id": 1,
+    "name": "Áo len",
+    "image": ""
+  },
+  {
+    "id": 2,
+    "name": "Blazer",
+    "image": ""
+  },
+  {
+    "id": 3,
+    "name": "Đầm",
+    "image": ""
+  },
+  {
+    "id": 4,
+    "name": "Áo phông",
+    "image": ""
+  },
+  {
+    "id": 5,
+    "name": "Áo gi lê",
+    "image": ""
+  },
+  {
+    "id": 6,
+    "name": "Chân váy",
+    "image": ""
+  },
+  {
+    "id": 7,
+    "name": "Quần short",
+    "image": ""
+  },
+  {
+    "id": 8,
+    "name": "Quần bò",
+    "image": ""
+  },
+  {
+    "id": 9,
+    "name": "Túi xách",
+    "image": ""
+  },
+  {
+    "id": 10,
+    "name": "Phụ kiện",
+    "image": ""
+  }
+]

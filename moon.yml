@@ -1,0 +1,19 @@
+language: typescript
+
+tags: ["vite", "vitest"]
+
+tasks:
+  start:
+    command: "pnpm start"
+    local: true
+  build:
+    command: "pnpm build"
+    outputs:
+      - "dist"
+  lint:
+    command: "pnpm lint"
+  test:
+    command: "pnpm test"
+  preview:
+    command: "pnpm preview"
+    local: true

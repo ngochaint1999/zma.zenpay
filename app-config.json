@@ -1,0 +1,23 @@
+{
+  "app": {
+    "title": "test-zma",
+    "textColor": {
+      "light": "black",
+      "dark": "white"
+    },
+    "headerColor": "#ffffff",
+    "statusBar": "normal",
+    "actionBarHidden": true,
+    "hideAndroidBottomNavigationBar": false,
+    "hideIOSSafeAreaBottom": true,
+    "selfControlLoading": false
+  },
+  "listCSS": [],
+  "listSyncJS": [],
+  "listAsyncJS": [],
+  "template": {
+    "name": "zma-zenpay",
+    "apiUrl": "",
+    "oaIDtoOpenChat": "4318657068771012646"
+  }
+}

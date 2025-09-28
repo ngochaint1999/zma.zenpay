@@ -1,0 +1,56 @@
+{
+  "name": "zma-zenpay",
+  "private": true,
+  "description": "zmp-blank-templates",
+  "version": "0.0.0",
+  "browserslist": [
+    "Android >= 5",
+    "IOS >= 9.3",
+    "Edge >= 15",
+    "Safari >= 9.1",
+    "Chrome >= 49",
+    "Firefox >= 31",
+    "Samsung >= 5"
+  ],
+  "scripts": {
+    "login": "zmp login",
+    "start": "zmp start",
+    "deploy": "zmp deploy"
+  },
+  "dependencies": {
+    "@react-spring/web": "^9.7.5",
+    "@use-gesture/react": "^10.3.1",
+    "axios": "^1.9.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "embla-carousel": "^8.6.0",
+    "embla-carousel-autoplay": "^8.6.0",
+    "embla-carousel-react": "^8.6.0",
+    "jotai": "^2.12.2",
+    "lottie-react": "^2.4.1",
+    "moment": "^2.30.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.5.2",
+    "react-router-dom": "^6.30.0",
+    "recharts": "^3.1.2",
+    "resize-observer-polyfill": "^1.5.1",
+    "tailwind-merge": "^2.5.5",
+    "zmp-sdk": "latest",
+    "zmp-ui": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "cross-env": "^7.0.3",
+    "postcss": "^8.4.38",
+    "postcss-cli": "^8.3.1",
+    "postcss-preset-env": "^6.7.0",
+    "sass": "^1.76.0",
+    "tailwindcss": "^3.4.3",
+    "vite": "^5.2.13",
+    "zmp-vite-plugin": "latest"
+  }
+}
